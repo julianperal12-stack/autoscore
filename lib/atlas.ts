@@ -7,6 +7,8 @@ export type VehicleData = {
   fuel?: string;
   transmission?: string;
   power?: number;
+  version?: string;
+  engine?: string;
   extras: string[];
   rawText: string;
 };
@@ -319,6 +321,10 @@ function extractModel(
   const lower = text.toLowerCase();
 
   const models = [
+    "X3",
+    "X5",
+    "X1",
+    "X4",
     "Golf",
     "Corolla",
     "320d",

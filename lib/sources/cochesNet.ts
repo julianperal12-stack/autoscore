@@ -6,6 +6,8 @@ export type CochesNetData = {
   mileage?: number;
   price?: number;
   power?: number;
+  version?: string;
+  engine?: string;
   fuel?: string;
   transmission?: string;
   extras: string[];
@@ -131,13 +133,6 @@ function extractFuel(text: string): string | undefined {
   }
 
   if (
-    lower.includes("eléctrico") ||
-    lower.includes("electrico")
-  ) {
-    return "Eléctrico";
-  }
-
-  if (
     lower.includes("híbrido") ||
     lower.includes("hibrido")
   ) {
@@ -145,9 +140,13 @@ function extractFuel(text: string): string | undefined {
   }
 
   if (
-    lower.includes("diésel") ||
-    lower.includes("diesel")
+    lower.includes("eléctrico") ||
+    lower.includes("electrico")
   ) {
+    return "Eléctrico";
+  }
+
+  if (lower.includes("diésel") || lower.includes("diesel")) {
     return "Diésel";
   }
 

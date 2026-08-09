@@ -271,6 +271,9 @@ export async function POST(request: Request) {
       vehicle = {
         ...genericData,
         make: sourceData.make ?? genericData.make,
+        model: sourceData.model ?? genericData.model,
+        version: sourceData.version ?? genericData.version,
+        engine: sourceData.engine ?? genericData.engine,
         year: sourceData.year ?? genericData.year,
         mileage:
           sourceData.mileage ?? genericData.mileage,
