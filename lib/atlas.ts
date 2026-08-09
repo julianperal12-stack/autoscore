@@ -122,35 +122,49 @@ function extractYear(text: string): number | undefined {
 
 function extractMileage(text: string): number | undefined {
   const normalized = text
-    .replace(/\u00a0/g, " ")
-    .replace(/\s+/g, " ");
+    .replace(String.fromCharCode(160), " ")
+    .replace(String.fromCharCode(13), " ");
 
-  // Ejemplos:
-  // "Kilometraje: 185.000"
-  // "Kilómetros: 185.000 km"
-  // "185.000 km"
-  const labelledPattern =
-    /(?:kilometraje|kilómetros|kilometros)\s*:?\s*(\d{1,3}(?:[.\s]\d{3})+|\d{4,6})(?:\s*km)?\b/i;
+  const lower = normalized.toLowerCase();
+  const positions: number[] = [];
 
-  const labelledMatch = normalized.match(labelledPattern);
+  let position = lower.indexOf("km");
 
-  if (labelledMatch) {
-    const value = normalizeNumber(labelledMatch[1]);
-
-    if (value !== undefined && value >= 500 && value <= 500000) {
-      return value;
-    }
+  while (position !== -1) {
+    positions.push(position);
+    position = lower.indexOf("km", position + 2);
   }
 
-  const kmPattern =
-    /(\d{1,3}(?:[.\s]\d{3})+|\d{4,6})\s*km\b/i;
+  for (const kmPosition of positions) {
+    const before = normalized.slice(0, kmPosition).trimEnd();
 
-  const kmMatch = normalized.match(kmPattern);
+    let end = before.length;
+    let start = end;
 
-  if (kmMatch) {
-    const value = normalizeNumber(kmMatch[1]);
+    while (start > 0) {
+      const char = before[start - 1];
 
-    if (value !== undefined && value >= 500 && value <= 500000) {
+      if (
+        (char >= "0" && char <= "9") ||
+        char === "." ||
+        char === " "
+      ) {
+        start--;
+      } else {
+        break;
+      }
+    }
+
+    const raw = before.slice(start, end).trim();
+
+    if (!raw) {
+      continue;
+    }
+
+    const digits = raw.replaceAll(".", "").replaceAll(" ", "");
+    const value = Number(digits);
+
+    if (Number.isInteger(value) && value >= 500 && value <= 500000) {
       return value;
     }
   }
@@ -252,20 +266,44 @@ function extractTransmission(text: string): string | undefined {
 }
 
 function extractPower(text: string): number | undefined {
-  const patterns = [
-    /\b(\d{2,3})\s*cv\b/i,
-    /\b(\d{2,3})\s*hp\b/i,
-  ];
+  const normalized = text
+    .replace(String.fromCharCode(160), " ")
+    .replace(String.fromCharCode(13), " ");
 
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
+  const lower = normalized.toLowerCase();
 
-    if (!match) continue;
+  const units = ["cv", "hp"];
 
-    const value = Number(match[1]);
+  for (const unit of units) {
+    let position = lower.indexOf(unit);
 
-    if (value >= 50 && value <= 1000) {
-      return value;
+    while (position !== -1) {
+      const before = normalized.slice(0, position).trimEnd();
+
+      let end = before.length;
+      let start = end;
+
+      while (start > 0) {
+        const char = before[start - 1];
+
+        if (char >= "0" && char <= "9") {
+          start--;
+        } else {
+          break;
+        }
+      }
+
+      const raw = before.slice(start, end);
+
+      if (raw) {
+        const value = Number(raw);
+
+        if (Number.isInteger(value) && value >= 50 && value <= 1000) {
+          return value;
+        }
+      }
+
+      position = lower.indexOf(unit, position + unit.length);
     }
   }
 
