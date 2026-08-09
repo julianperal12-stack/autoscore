@@ -36,7 +36,19 @@ const MARKET_FILE = path.join(
 );
 
 function clean(value?: string): string {
-  return typeof value === "string" ? value.trim() : "";
+  if (typeof value !== "string") return "";
+
+  let result = value.trim();
+
+  // Convierte URLs pegadas como Markdown:
+  // [https://ejemplo.com/anuncio](https://ejemplo.com/anuncio)
+  const markdownUrl = result.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+
+  if (markdownUrl) {
+    result = markdownUrl[2].trim();
+  }
+
+  return result;
 }
 
 function validate(item: MarketImport): string[] {
