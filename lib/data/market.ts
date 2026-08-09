@@ -103,6 +103,7 @@ export function findComparableVehicles(
     mileage?: number;
     fuel?: string;
     transmission?: string;
+    power?: number;
   },
   observations = MARKET_OBSERVATIONS
 ): MarketObservation[] {
@@ -155,6 +156,32 @@ export function findComparableVehicles(
         normalizeMarketText(observation.transmission)
     ) {
       return false;
+    }
+
+    /*
+     * La potencia permite distinguir versiones/motores.
+     *
+     * Ejemplo:
+     * X3 20 xDrive 208 CV vs X3 20d 197 CV
+     * → 5,3% de diferencia → comparable.
+     *
+     * X3 20 xDrive 208 CV vs X3 30e 292 CV
+     * → demasiada diferencia → no comparable principal.
+     *
+     * Si alguno de los dos anuncios no tiene potencia,
+     * no descartamos el comparable para no perder datos.
+     */
+    if (
+      vehicle.power &&
+      observation.power
+    ) {
+      const powerDifference =
+        Math.abs(observation.power - vehicle.power) /
+        Math.max(vehicle.power, 1);
+
+      if (powerDifference > 0.15) {
+        return false;
+      }
     }
 
     return true;
