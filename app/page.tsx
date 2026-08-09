@@ -12,6 +12,8 @@ export default function Home() {
   const [text, setText] = useState("");
   const [result, setResult] = useState<AtlasResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [savingMarket, setSavingMarket] = useState(false);
+  const [marketSaved, setMarketSaved] = useState(false);
   const [error, setError] = useState("");
 
   function analyzeText() {
@@ -20,6 +22,122 @@ export default function Home() {
     setError("");
     const vehicle = parseVehicle(text);
     setResult(runAtlas(vehicle));
+  }
+
+  async function saveAsMarketObservation() {
+    if (!result) return;
+
+    const vehicle = result.vehicle;
+
+    /*
+     * Fallback de modelo para anuncios de Coches.net.
+     *
+     * El análisis puede mostrar correctamente el vehículo aunque
+     * Atlas no haya rellenado model. En ese caso utilizamos el slug
+     * de la URL, que en Coches.net contiene el modelo.
+     */
+    let model = vehicle.model;
+
+    if (!model && url) {
+      const slug = url.toLowerCase();
+
+      const models = [
+        ["serie-3", "Serie 3"],
+        ["serie-5", "Serie 5"],
+        ["serie-1", "Serie 1"],
+        ["x1", "X1"],
+        ["x3", "X3"],
+        ["x4", "X4"],
+        ["x5", "X5"],
+        ["x6", "X6"],
+        ["golf", "Golf"],
+        ["tiguan", "Tiguan"],
+        ["passat", "Passat"],
+        ["polo", "Polo"],
+        ["glc", "GLC"],
+        ["gla", "GLA"],
+        ["q3", "Q3"],
+        ["q5", "Q5"],
+        ["q7", "Q7"],
+        ["a3", "A3"],
+        ["a4", "A4"],
+        ["a5", "A5"],
+        ["corolla", "Corolla"],
+        ["rav4", "RAV4"],
+        ["c-hr", "C-HR"],
+        ["civic", "Civic"],
+        ["308", "308"],
+        ["3008", "3008"],
+        ["model-3", "Model 3"],
+        ["model-y", "Model Y"],
+      ];
+
+      for (const [slugModel, modelName] of models) {
+        if (slug.includes(`-${slugModel}-`)) {
+          model = modelName;
+          break;
+        }
+      }
+    }
+
+    const missing: string[] = [];
+
+    if (!vehicle.make) missing.push("marca");
+    if (!model) missing.push("modelo");
+    if (!vehicle.year) missing.push("año");
+    if (!vehicle.mileage) missing.push("kilometraje");
+    if (!vehicle.price) missing.push("precio");
+
+    if (missing.length > 0) {
+      setError(
+        `Faltan: ${missing.join(", ")}`
+      );
+      return;
+    }
+
+    setSavingMarket(true);
+    setMarketSaved(false);
+    setError("");
+
+    try {
+      const response = await fetch("/api/market/add", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          make: vehicle.make,
+          model,
+          year: vehicle.year,
+          mileage: vehicle.mileage,
+          price: vehicle.price,
+          fuel: vehicle.fuel,
+          transmission: vehicle.transmission,
+          power: vehicle.power,
+          source: "coches.net",
+          sourceUrl: url,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            "No hemos podido guardar el comparable."
+        );
+      }
+
+      setMarketSaved(true);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No hemos podido guardar el comparable."
+      );
+    } finally {
+      setSavingMarket(false);
+    }
   }
 
   async function analyzeUrl() {
@@ -140,13 +258,28 @@ Apple CarPlay`}
           )}
         </div>
 
-        {result && <Analysis result={result} />}
+        {result && <Analysis
+              result={result}
+              onSaveMarket={saveAsMarketObservation}
+              savingMarket={savingMarket}
+              marketSaved={marketSaved}
+/>}
       </div>
     </main>
   );
 }
 
-function Analysis({ result }: { result: AtlasResult }) {
+function Analysis({
+  result,
+  onSaveMarket,
+  savingMarket,
+  marketSaved,
+}: {
+  result: AtlasResult;
+  onSaveMarket: () => void;
+  savingMarket: boolean;
+  marketSaved: boolean;
+}) {
   return (
     <section className="mt-10 space-y-5">
       <div className="rounded-[32px] bg-white p-7 text-black md:p-9">
@@ -171,6 +304,31 @@ function Analysis({ result }: { result: AtlasResult }) {
             </span>
             <span className="text-xs text-zinc-500">/100</span>
           </div>
+        </div>
+      </div>
+
+      <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-white">
+              Base de mercado
+            </p>
+            <p className="mt-1 text-sm text-zinc-500">
+              Guarda este anuncio como comparable para mejorar el PriceScore.
+            </p>
+          </div>
+
+          <button
+            onClick={onSaveMarket}
+            disabled={savingMarket || marketSaved}
+            className="rounded-2xl border border-white/10 bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {savingMarket
+              ? "Guardando..."
+              : marketSaved
+                ? "✓ Comparable guardado"
+                : "⭐ Guardar como comparable"}
+          </button>
         </div>
       </div>
 
