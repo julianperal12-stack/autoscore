@@ -13,8 +13,11 @@ export type CochesNetData = {
 
 function cleanText(value: string): string {
   return value
-    .replace(/\u00a0/g, " ")
-    .replace(/\s+/g, " ")
+    .replaceAll(String.fromCharCode(160), " ")
+    .replaceAll("**", "")
+    .replaceAll("\\r", " ")
+    .replaceAll("\\n", " ")
+    .replace(/\\s+/g, " ")
     .trim();
 }
 
@@ -26,30 +29,6 @@ function numberFromText(value: string): number | undefined {
   return Number(digits);
 }
 
-function extractNumberBefore(
-  text: string,
-  unit: string
-): number | undefined {
-  const lower = text.toLowerCase();
-  const position = lower.indexOf(unit.toLowerCase());
-
-  if (position === -1) return undefined;
-
-  const before = text.slice(0, position);
-
-  const matches = before.match(/[\d. ]+/g);
-
-  if (!matches || matches.length === 0) {
-    return undefined;
-  }
-
-  const raw = matches[matches.length - 1];
-
-  const value = numberFromText(raw);
-
-  return value;
-}
-
 function extractYear(text: string): number | undefined {
   const matches = text.match(/\b20\d{2}\b/g);
 
@@ -59,13 +38,18 @@ function extractYear(text: string): number | undefined {
 
   const years = matches
     .map(Number)
-    .filter((year) => year >= 1990 && year <= currentYear + 1);
+    .filter(
+      (year) =>
+        year >= 1990 &&
+        year <= currentYear + 1
+    );
 
   return years[0];
 }
 
 function extractMileage(text: string): number | undefined {
   const patterns = [
+    /[-•]\s*([\d. ]+)\s*km\b/i,
     /([\d. ]+)\s*km\b/i,
     /([\d. ]+)\s*kilómetros?\b/i,
   ];
@@ -116,8 +100,9 @@ function extractPrice(text: string): number | undefined {
 
 function extractPower(text: string): number | undefined {
   const patterns = [
-    /(\d{2,3})\s*CV\b/i,
-    /(\d{2,3})\s*HP\b/i,
+    /[-•]\s*(\d{2,3})\s*cv\b/i,
+    /(\d{2,3})\s*cv\b/i,
+    /(\d{2,3})\s*hp\b/i,
   ];
 
   for (const pattern of patterns) {
@@ -173,7 +158,9 @@ function extractFuel(text: string): string | undefined {
   return undefined;
 }
 
-function extractTransmission(text: string): string | undefined {
+function extractTransmission(
+  text: string
+): string | undefined {
   const lower = text.toLowerCase();
 
   if (
@@ -191,7 +178,9 @@ function extractTransmission(text: string): string | undefined {
   return undefined;
 }
 
-function extractMake(text: string): string | undefined {
+function extractMake(
+  text: string
+): string | undefined {
   const brands = [
     "Audi",
     "BMW",
@@ -230,6 +219,51 @@ function extractMake(text: string): string | undefined {
   );
 }
 
+function extractModel(
+  text: string,
+  make?: string
+): string | undefined {
+  const models = [
+    "X3",
+    "X5",
+    "X1",
+    "X4",
+    "Serie 3",
+    "Serie 5",
+    "Golf",
+    "Corolla",
+    "GLC",
+    "Q5",
+    "Q3",
+    "A3",
+    "A4",
+    "A5",
+    "Tiguan",
+    "Passat",
+    "Polo",
+    "Leon",
+    "León",
+    "Ibiza",
+    "Ateca",
+    "C-HR",
+    "Yaris",
+    "RAV4",
+    "Clio",
+    "Captur",
+    "Megane",
+    "308",
+    "3008",
+    "Model 3",
+    "Model Y",
+  ];
+
+  const lower = text.toLowerCase();
+
+  return models.find((model) =>
+    lower.includes(model.toLowerCase())
+  );
+}
+
 export function parseCochesNet(
   htmlOrText: string
 ): CochesNetData {
@@ -249,6 +283,7 @@ export function parseCochesNet(
   return {
     title: text.slice(0, 200),
     make,
+    model: extractModel(text, make),
     year: extractYear(text),
     mileage: extractMileage(text),
     price: extractPrice(text),
