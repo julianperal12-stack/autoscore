@@ -263,6 +263,34 @@ function extractModel(
   );
 }
 
+function extractVersion(
+  text: string,
+  make?: string,
+  model?: string
+): string | undefined {
+  if (!make || !model) return undefined;
+
+  const normalized = text
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (
+    make.toLowerCase() === "bmw" &&
+    model.toLowerCase() === "x3"
+  ) {
+    const match = normalized.match(
+      /\b((?:20d|20|30e|30|40i|M50)\s*xDrive)\b/i
+    );
+
+    if (match) {
+      return match[1].replace(/\s+/g, " ").trim();
+    }
+  }
+
+  return undefined;
+}
+
 export function parseCochesNet(
   htmlOrText: string
 ): CochesNetData {
@@ -278,11 +306,14 @@ export function parseCochesNet(
   );
 
   const make = extractMake(text);
+  const model = extractModel(text, make);
+  const version = extractVersion(text, make, model);
 
   return {
     title: text.slice(0, 200),
     make,
-    model: extractModel(text, make),
+    model,
+    version,
     year: extractYear(text),
     mileage: extractMileage(text),
     price: extractPrice(text),
