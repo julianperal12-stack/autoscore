@@ -77,10 +77,11 @@ function validate(item: MarketImport): string[] {
 
 async function main() {
   const inputFile = process.argv[2];
+  const dryRun = process.argv.includes("--dry-run");
 
   if (!inputFile) {
     console.error(
-      "Uso: npx tsx scripts/import-market.ts archivo.json"
+      "Uso: npx tsx scripts/import-market.ts archivo.json [--dry-run]"
     );
     process.exit(1);
   }
@@ -180,7 +181,7 @@ async function main() {
     existingUrls.add(sourceUrl);
   }
 
-  if (validItems.length > 0) {
+  if (validItems.length > 0 && !dryRun) {
     await appendFile(
       MARKET_FILE,
       validItems.map((item) => JSON.stringify(item)).join("\n") + "\n",
@@ -194,6 +195,11 @@ async function main() {
   console.log(`Guardados: ${validItems.length}`);
   console.log(`Duplicados: ${duplicates}`);
   console.log(`Rechazados: ${rejected.length}`);
+
+  if (dryRun) {
+    console.log("");
+    console.log("DRY RUN → NO SE HA MODIFICADO LA BASE");
+  }
 
   if (rejected.length > 0) {
     console.log("");
