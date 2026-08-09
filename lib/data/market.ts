@@ -25,12 +25,18 @@ export type MarketObservation = {
   make: string;
   model: string;
 
+  version?: string;
+  trim?: string;
+  engine?: string;
+
   year: number;
   mileage: number;
 
+  power?: number;
   fuel?: FuelType;
   transmission?: TransmissionType;
-  power?: number;
+  drivetrain?: string;
+  body?: string;
 
   price: number;
 
@@ -99,6 +105,7 @@ export function findComparableVehicles(
   vehicle: {
     make?: string;
     model?: string;
+    version?: string;
     year?: number;
     mileage?: number;
     fuel?: string;
@@ -186,6 +193,252 @@ export function findComparableVehicles(
 
     return true;
   });
+}
+
+export type ComparableTier =
+  | "exact"
+  | "close"
+  | "secondary";
+
+export type ComparableMatch = {
+  observation: MarketObservation;
+  similarity: number;
+  tier: ComparableTier;
+  reasons: string[];
+};
+
+function percentageDifference(
+  a: number,
+  b: number
+): number {
+  return Math.abs(a - b) / Math.max(Math.abs(a), 1);
+}
+
+/**
+ * Calcula una similitud 0-100 entre el vehículo analizado
+ * y un anuncio del mercado.
+ *
+ * No decide todavía si el anuncio entra o no en PriceScore.
+ * Solo mide qué tan parecido es.
+ */
+export function calculateComparableSimilarity(
+  vehicle: {
+    make?: string;
+    model?: string;
+    version?: string;
+    year?: number;
+    mileage?: number;
+    power?: number;
+    fuel?: string;
+    transmission?: string;
+    drivetrain?: string;
+    body?: string;
+  },
+  observation: MarketObservation
+): ComparableMatch {
+  let score = 100;
+  const reasons: string[] = [];
+
+  // Marca/modelo son requisitos estructurales.
+  if (
+    normalizeMarketText(vehicle.make) !==
+    normalizeMarketText(observation.make)
+  ) {
+    return {
+      observation,
+      similarity: 0,
+      tier: "secondary",
+      reasons: ["Marca diferente"],
+    };
+  }
+
+  if (
+    normalizeMarketText(vehicle.model) !==
+    normalizeMarketText(observation.model)
+  ) {
+    return {
+      observation,
+      similarity: 0,
+      tier: "secondary",
+      reasons: ["Modelo diferente"],
+    };
+  }
+
+  // Año
+  if (vehicle.year) {
+    const yearDifference = Math.abs(
+      observation.year - vehicle.year
+    );
+
+    if (yearDifference === 0) {
+      reasons.push("Mismo año");
+    } else if (yearDifference === 1) {
+      score -= 8;
+      reasons.push("Año ±1");
+    } else if (yearDifference === 2) {
+      score -= 18;
+      reasons.push("Año ±2");
+    } else {
+      score -= 35;
+      reasons.push("Año más alejado");
+    }
+  }
+
+  // Kilometraje
+  if (vehicle.mileage) {
+    const mileageDifference =
+      percentageDifference(
+        observation.mileage,
+        vehicle.mileage
+      );
+
+    if (mileageDifference <= 0.10) {
+      reasons.push("Kilometraje muy similar");
+    } else if (mileageDifference <= 0.20) {
+      score -= 3;
+      reasons.push("Kilometraje similar");
+    } else if (mileageDifference <= 0.35) {
+      score -= 7;
+      reasons.push("Kilometraje algo diferente");
+    } else {
+      score -= 15;
+      reasons.push("Kilometraje bastante diferente");
+    }
+  }
+
+  // Potencia
+  if (vehicle.power && observation.power) {
+    const powerDifference =
+      percentageDifference(
+        observation.power,
+        vehicle.power
+      );
+
+    if (powerDifference <= 0.05) {
+      reasons.push("Potencia prácticamente idéntica");
+    } else if (powerDifference <= 0.10) {
+      score -= 5;
+      reasons.push("Potencia muy similar");
+    } else if (powerDifference <= 0.15) {
+      score -= 12;
+      reasons.push("Potencia similar");
+    } else {
+      score -= 35;
+      reasons.push("Potencia diferente");
+    }
+  }
+
+  // Versión/motor
+  if (vehicle.version && observation.version) {
+    const vehicleVersion =
+      normalizeMarketText(vehicle.version);
+
+    const observationVersion =
+      normalizeMarketText(observation.version);
+
+    if (vehicleVersion === observationVersion) {
+      reasons.push("Misma versión");
+    } else {
+      score -= 25;
+      reasons.push("Versión diferente");
+    }
+  }
+
+  // Combustible
+  if (vehicle.fuel && observation.fuel) {
+    if (
+      normalizeMarketText(vehicle.fuel) ===
+      normalizeMarketText(observation.fuel)
+    ) {
+      reasons.push("Mismo combustible");
+    } else {
+      score -= 30;
+      reasons.push("Combustible diferente");
+    }
+  }
+
+  // Cambio
+  if (vehicle.transmission && observation.transmission) {
+    if (
+      normalizeMarketText(vehicle.transmission) ===
+      normalizeMarketText(observation.transmission)
+    ) {
+      reasons.push("Mismo cambio");
+    } else {
+      score -= 20;
+      reasons.push("Cambio diferente");
+    }
+  }
+
+  // Tracción
+  if (vehicle.drivetrain && observation.drivetrain) {
+    if (
+      normalizeMarketText(vehicle.drivetrain) ===
+      normalizeMarketText(observation.drivetrain)
+    ) {
+      reasons.push("Misma tracción");
+    } else {
+      score -= 10;
+      reasons.push("Tracción diferente");
+    }
+  }
+
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  let tier: ComparableTier;
+
+  if (score >= 85) {
+    tier = "exact";
+  } else if (score >= 60) {
+    tier = "close";
+  } else {
+    tier = "secondary";
+  }
+
+  return {
+    observation,
+    similarity: score,
+    tier,
+    reasons,
+  };
+}
+
+/**
+ * Devuelve comparables ordenados por similitud.
+ */
+export function rankComparableVehicles(
+  vehicle: {
+    make?: string;
+    model?: string;
+    version?: string;
+    year?: number;
+    mileage?: number;
+    power?: number;
+    fuel?: string;
+    transmission?: string;
+    drivetrain?: string;
+    body?: string;
+  },
+  observations: MarketObservation[]
+): ComparableMatch[] {
+  return observations
+    .filter(
+      (observation) =>
+        normalizeMarketText(observation.make) ===
+          normalizeMarketText(vehicle.make) &&
+        normalizeMarketText(observation.model) ===
+          normalizeMarketText(vehicle.model)
+    )
+    .map((observation) =>
+      calculateComparableSimilarity(
+        vehicle,
+        observation
+      )
+    )
+    .sort(
+      (a, b) =>
+        b.similarity - a.similarity
+    );
 }
 
 /**
